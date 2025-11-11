@@ -1,0 +1,54 @@
+import pandas as pd
+import os
+from PIL import Image
+import numpy as np
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras import layers, models
+
+# Step 1: Load CSV and build image paths
+df = pd.read_csv("/content/data/cat_dog.csv")
+image_dir = "/content/data/cat_dog"
+df["image_path"] = df["image"].apply(lambda x: os.path.join(image_dir, x))
+
+# Step 2: Load and preprocess images
+images = []
+labels = []
+
+for i, row in df.iterrows():
+    path = row["image_path"]
+    if not os.path.exists(path):
+        print(f"❌ Missing: {path}")
+        continue
+    img = Image.open(path).resize((64, 64)).convert("RGB")
+    img_array = np.array(img) / 255.0
+    images.append(img_array)
+    labels.append(row["labels"])
+
+X = np.array(images)
+y = to_categorical(np.array(labels))
+
+# Step 3: Split data
+X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Step 4: Build CNN model
+model = models.Sequential([
+    layers.Conv2D(32, (3,3), activation='relu', input_shape=(64,64,3)),
+    layers.MaxPooling2D((2,2)),
+    layers.Conv2D(64, (3,3), activation='relu'),
+    layers.MaxPooling2D((2,2)),
+    layers.Flatten(),
+    layers.Dense(128, activation='relu'),
+    layers.Dense(y.shape[1], activation='softmax')
+])
+
+# Step 5: Compile and train
+model.compile(optimizer='adam',
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=10)
+
+# Step 6: Save model
+model.save("cnn_model.h5")
+print("✅ CNN model saved as cnn_model.h5")
